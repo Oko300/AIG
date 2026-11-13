@@ -62,9 +62,6 @@ export default function Home() {
   // ── Bootstrap ───────────────────────────────────────────────────────────────
   useEffect(() => {
     setMounted(true);
-    // Run initial simulation on mount
-    runSimulation("ethereum", "near", "USDC", "NEAR", 100, "user.near", "user.near");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Sync asset lists when chains change ────────────────────────────────────
@@ -171,6 +168,85 @@ export default function Home() {
     if (pollRef.current) clearTimeout(pollRef.current);
     setIsPolling(false);
   };
+
+  // ── MCP Panel component ─────────────────────────────────────────────────────
+  function McpPanel() {
+    const [copied, setCopied] = useState<string | null>(null);
+
+    const copy = (text: string, key: string) => {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(key);
+        setTimeout(() => setCopied(null), 2000);
+      });
+    };
+
+    const claudeConfig = `{
+  "mcpServers": {
+    "intentshield": {
+      "command": "npx",
+      "args": ["tsx", "/path/to/AIG/src/mcp/server.ts"]
+    }
+  }
+}`;
+
+    const tools = [
+      { name: "get_supported_tokens", desc: "List 229 live tokens from 1Click API", example: `{"filter_chain": "ethereum"}` },
+      { name: "verify_near_intent",   desc: "Risk score a swap before executing",   example: `{"originAsset":"nep141:wrap.near","destinationAsset":"nep141:eth.omft.near","amount":"1000000000000000000000000","refundTo":"you.near","recipient":"you.near"}` },
+      { name: "get_near_intent_quote",desc: "Real dry quote — amounts & fees",       example: `{"originAsset":"nep141:wrap.near","destinationAsset":"nep141:eth.omft.near","amount":"1000000000000000000000000","refundTo":"you.near","recipient":"you.near"}` },
+      { name: "submit_deposit_tx",    desc: "Notify 1Click of a deposit TX hash",   example: `{"depositAddress":"0xABC...","txHash":"0xDEF..."}` },
+      { name: "check_intent_status",  desc: "Poll live execution status",            example: `{"depositAddress":"0xABC..."}` },
+    ];
+
+    return (
+      <div className="bg-[#111827] border border-gray-800 rounded-2xl p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-md font-bold text-white flex items-center gap-2">
+            <Terminal className="w-5 h-5 text-blue-400" />
+            MCP Server — 5 Tools
+          </h3>
+          <span className="text-[10px] text-gray-500 font-mono">stdio transport</span>
+        </div>
+
+        {/* Claude Desktop config */}
+        <div className="mb-4 p-3 bg-[#0a0f1d] border border-gray-800 rounded-xl">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Claude Desktop Config</span>
+            <button
+              onClick={() => copy(claudeConfig, "config")}
+              className="text-[10px] px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 rounded transition"
+            >
+              {copied === "config" ? "✓ Copied!" : "Copy"}
+            </button>
+          </div>
+          <pre className="text-[10px] text-gray-400 font-mono overflow-x-auto whitespace-pre-wrap">{claudeConfig}</pre>
+        </div>
+
+        {/* Tool list */}
+        <div className="space-y-2">
+          {tools.map((t) => (
+            <div key={t.name} className="p-3 bg-[#0a0f1d] border border-gray-800 rounded-xl">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <code className="text-xs font-bold text-emerald-400">{t.name}</code>
+                  <p className="text-[10px] text-gray-500 mt-0.5">{t.desc}</p>
+                </div>
+                <button
+                  onClick={() => copy(t.example, t.name)}
+                  className="flex-shrink-0 text-[10px] px-2 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 hover:text-emerald-400 rounded transition"
+                >
+                  {copied === t.name ? "✓ Copied!" : "Copy args"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-[10px] text-gray-600 mt-3 text-center">
+          Run locally: <code className="text-gray-500">npm run mcp</code> · then add config above to Claude Desktop
+        </p>
+      </div>
+    );
+  }
 
   // ── Render guard ────────────────────────────────────────────────────────────
   if (!mounted) {
@@ -395,13 +471,27 @@ export default function Home() {
         {/* ── Right Column ──────────────────────────────────────────────────── */}
         <div className="lg:col-span-7 space-y-6">
 
+          {/* Empty state — before first run */}
+          {!simulation && !isSimulating && (
+            <div className="p-10 rounded-2xl border border-dashed border-gray-700 bg-[#111827]/50 flex flex-col items-center justify-center text-center gap-3">
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
+                <Zap className="w-8 h-8 text-emerald-400" />
+              </div>
+              <p className="text-white font-semibold">No simulation yet</p>
+              <p className="text-xs text-gray-500 max-w-xs">
+                Configure your intent on the left and click <span className="text-emerald-400 font-semibold">Run Pre-Flight Simulation</span> to get a live quote from the NEAR Intents 1Click API.
+              </p>
+            </div>
+          )}
+
           {/* Loading skeleton */}
-          {isSimulating && !simulation && (
+          {isSimulating && (
             <div className="p-6 rounded-2xl border border-gray-800 bg-[#111827] animate-pulse flex items-center gap-4">
               <div className="w-10 h-10 rounded-full bg-gray-800" />
               <div className="flex-1 space-y-2">
                 <div className="h-4 bg-gray-800 rounded w-2/3" />
                 <div className="h-3 bg-gray-800 rounded w-1/2" />
+                <div className="h-3 bg-gray-800 rounded w-1/3" />
               </div>
             </div>
           )}
@@ -547,24 +637,7 @@ export default function Home() {
               </div>
 
               {/* MCP Panel */}
-              <div className="bg-[#111827] border border-gray-800 rounded-xl p-5 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-500/10 border border-blue-500/30 rounded-lg text-blue-400">
-                    <Terminal className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-white">5 MCP Tools Ready</h4>
-                    <p className="text-[11px] text-gray-400">
-                      <code className="text-emerald-400 font-mono">get_supported_tokens</code>·
-                      <code className="text-emerald-400 font-mono"> verify_near_intent</code>·
-                      <code className="text-emerald-400 font-mono"> check_intent_status</code>
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs font-mono px-3 py-1 bg-gray-900 border border-gray-700 rounded-lg text-gray-300 flex-shrink-0">
-                  npm run mcp
-                </span>
-              </div>
+              <McpPanel />
             </>
           )}
 
